@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kafstore - Kafka Keystore Generator</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --primary-light: rgba(99, 102, 241, 0.1);
+            --success: #10b981;
+            --success-light: rgba(16, 185, 129, 0.1);
+            --error: #ef4444;
+            --error-light: rgba(239, 68, 68, 0.1);
+            --warning: #f59e0b;
+            --warning-light: rgba(245, 158, 11, 0.1);
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #334155;
+            --radius: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container { max-width: 1000px; margin: 0 auto; padding: 40px 24px; }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+        .logo-icon {
+            width: 64px; height: 64px;
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            border-radius: var(--radius);
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+        }
+        .logo-icon svg { width: 36px; height: 36px; color: white; }
+        h1 { font-size: 2.25rem; font-weight: 700; background: linear-gradient(135deg, #fff 0%, var(--text-secondary) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { color: var(--text-secondary); margin-top: 8px; font-size: 1.1rem; }
+        .security-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            margin-top: 16px; padding: 8px 16px;
+            background: var(--success-light);
+            border: 1px solid var(--success);
+            border-radius: 20px;
+            color: var(--success);
+            font-size: 0.875rem;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            background: var(--bg-input);
+            border-radius: 50%;
+            font-size: 0.75rem;
+            cursor: help;
+            margin-left: 6px;
+            color: var(--text-muted);
+        }
+        .tooltip:hover { background: var(--primary); color: white; }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 280px;
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            text-align: left;
+            border-radius: 8px;
+            padding: 12px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -140px;
+            border: 1px solid var(--border);
+            font-size: 0.85rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            line-height: 1.5;
+        }
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: var(--bg-card) transparent transparent transparent;
+        }
+        .tooltip:hover .tooltiptext { visibility: visible; }
+
+        /* Info Banner */
+        .info-banner {
+            background: var(--warning-light);
+            border: 1px solid var(--warning);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .info-banner-icon {
+            width: 24px;
+            height: 24px;
+            color: var(--warning);
+            flex-shrink: 0;
+        }
+        .info-banner-content {
+            flex: 1;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+        }
+        .info-banner-content strong { color: var(--warning); }
+
+        /* Progress Steps */
+        .steps {
+            display: flex; justify-content: center; gap: 8px;
+            margin-bottom: 32px; flex-wrap: wrap;
+        }
+        .step-btn {
+            padding: 12px 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .step-btn:hover { border-color: var(--primary); color: var(--text-primary); transform: translateY(-2px); }
+        .step-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        .step-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--bg-input);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+        .step-btn.active .step-number { background: rgba(255,255,255,0.2); }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            margin-bottom: 24px;
+            transition: all 0.3s;
+        }
+        .card:hover { border-color: var(--primary); }
+        .card h2 {
+            font-size: 1.4rem;
+            margin-bottom: 8px;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .card h2::before {
+            content: '';
+            width: 4px; height: 28px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+        .card-desc { color: var(--text-secondary); margin-bottom: 24px; font-size: 0.95rem; }
+
+        /* Upload Grid */
+        .upload-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        @media (max-width: 600px) { .upload-grid { grid-template-columns: 1fr; } }
+
+        .upload-box {
+            position: relative;
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 28px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--bg-dark);
+        }
+        .upload-box:hover { border-color: var(--primary); background: var(--primary-light); transform: translateY(-2px); }
+        .upload-box.has-file {
+            border-color: var(--success);
+            border-style: solid;
+            background: var(--success-light);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+        .upload-box input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .upload-icon {
+            width: 48px; height: 48px;
+            margin: 0 auto 12px;
+            background: var(--bg-input);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-muted);
+            transition: all 0.3s;
+        }
+        .upload-box:hover .upload-icon { transform: scale(1.1); }
+        .upload-box.has-file .upload-icon { background: var(--success); color: white; }
+        .upload-label {
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            margin-bottom: 6px;
+        }
+        .upload-hint { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; word-break: break-all; font-family: monospace; }
+        .upload-example {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+            font-style: italic;
+        }
+
+        /* Form */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .form-group label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+        }
+        .form-group input {
+            padding: 14px 16px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        .form-group input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+        .form-group input::placeholder { color: var(--text-muted); }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 1rem; font-weight: 600;
+            cursor: pointer; border: none;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4); }
+        .btn-success { background: linear-gradient(135deg, var(--success) 0%, #059669 100%); color: white; }
+        .btn-success:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-group { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+
+        /* Cert Info */
+        .cert-info {
+            background: var(--bg-input);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 24px;
+            font-size: 0.9rem;
+        }
+        .cert-item {
+            padding: 14px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            margin-top: 12px;
+            border-left: 4px solid var(--primary);
+        }
+        .cert-item.root { border-left-color: var(--success); }
+        .cert-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            background: var(--primary-light);
+            color: var(--primary);
+            border-radius: 5px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .cert-item.root .cert-badge { background: var(--success-light); color: var(--success); }
+
+        /* Test Result */
+        .test-result {
+            padding: 24px;
+            border-radius: var(--radius);
+            margin-top: 24px;
+        }
+        .test-result.success { background: var(--success-light); border: 2px solid var(--success); color: var(--success); }
+        .test-result.error { background: var(--error-light); border: 2px solid var(--error); color: var(--error); }
+
+        /* Logs */
+        .logs {
+            background: #000;
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.85rem;
+            max-height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 24px; right: 24px;
+            padding: 18px 28px;
+            border-radius: var(--radius);
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            max-width: 400px;
+        }
+        .notification.success { background: var(--success); }
+        .notification.error { background: var(--error); }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(100px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .spinner {
+            width: 20px; height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .hidden { display: none; }
+        .section { display: none; }
+        .section.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Output Files Preview */
+        .output-files {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin: 24px 0;
+        }
+        .output-file {
+            padding: 16px;
+            background: var(--bg-input);
+            border-radius: 8px;
+            border-left: 3px solid var(--primary);
+        }
+        .output-file-name {
+            font-family: monospace;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .output-file-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>Kafstore</h1>
+                </div>
+            </div>
+            <p class="subtitle">Kafka Keystore Generator - Automated SSL Configuration</p>
+            <div class="security-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                Secure Server-Side Processing
+            </div>
+        </header>
+
+        <div class="info-banner">
+            <svg class="info-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <div class="info-banner-content">
+                <strong>What does this tool do?</strong><br>
+                Kafstore converts your certificates into ready-to-use Java keystores (JKS/PKCS12) for Kafka mTLS authentication. Just 3 files needed - No more manual keytool commands!
+            </div>
+        </div>
+
+        <div class="steps">
+            <button class="step-btn active" onclick="showSection('upload')">
+                <span class="step-number">1</span> Upload
+            </button>
+            <button class="step-btn" onclick="showSection('configure')">
+                <span class="step-number">2</span> Configure
+            </button>
+            <button class="step-btn" onclick="showSection('generate')">
+                <span class="step-number">3</span> Generate
+            </button>
+            <button class="step-btn" onclick="showSection('test')">
+                <span class="step-number">4</span> Test
+            </button>
+        </div>
+
+        <div id="notification"></div>
+
+        <!-- Section 1: Upload -->
+        <div id="section-upload" class="section active">
+            <div class="card">
+                <h2>Upload Certificate Files</h2>
+                <p class="card-desc">Upload only 3 files from your certificate authority. File extensions don't matter!</p>
+
+                <div class="upload-grid">
+                    <div class="upload-box" id="box-ca">
+                        <input type="file" name="ca_chain" onchange="handleFile(this, 'ca')">
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                        </div>
+                        <span class="upload-label">
+                            CA Chain
+                            <span class="tooltip">?
+                                <span class="tooltiptext">Complete certificate authority chain. Used to create the truststore for server validation.</span>
+                            </span>
+                        </span>
+                        <span class="upload-hint" id="hint-ca">CA_chain</span>
+                        <span class="upload-example">Usually named: CA_chain, ca-bundle, chain.pem</span>
+                    </div>
+
+                    <div class="upload-box" id="box-bundle">
+                        <input type="file" name="bundle" onchange="handleFile(this, 'bundle')">
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <span class="upload-label">
+                            Certificate Bundle
+                            <span class="tooltip">?
+                                <span class="tooltiptext">Your client certificate + intermediate CAs. This file already contains everything needed (no need for separate cert file).</span>
+                            </span>
+                        </span>
+                        <span class="upload-hint" id="hint-bundle">bundle_cert_without_key</span>
+                        <span class="upload-example">Usually named: bundle, cert-bundle, fullchain.pem</span>
+                    </div>
+
+                    <div class="upload-box" id="box-key">
+                        <input type="file" name="key" onchange="handleFile(this, 'key')">
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                            </svg>
+                        </div>
+                        <span class="upload-label">
+                            Private Key
+                            <span class="tooltip">?
+                                <span class="tooltiptext">Your private key corresponding to the client certificate. Keep this secure!</span>
+                            </span>
+                        </span>
+                        <span class="upload-hint" id="hint-key">key</span>
+                        <span class="upload-example">Usually named: key, private-key, client.key</span>
+                    </div>
+                </div>
+
+                <div id="cert-analysis" class="cert-info hidden"></div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="showSection('configure')" id="btn-next-config">
+                        Continue to Configure
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Configure -->
+        <div id="section-configure" class="section">
+            <div class="card">
+                <h2>Configuration</h2>
+                <p class="card-desc">Configure your keystore parameters. You can use different passwords for truststore and keystore.</p>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>
+                            Alias Name
+                            <span class="tooltip">?
+                                <span class="tooltiptext">A friendly name for your certificate in the keystore. Use something descriptive like "kafka-prod-client".</span>
+                            </span>
+                        </label>
+                        <input type="text" id="alias" value="kafka-client" placeholder="kafka-client">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            Truststore Password
+                            <span class="tooltip">?
+                                <span class="tooltiptext">Password to protect the truststore.jks file containing CA certificates.</span>
+                            </span>
+                        </label>
+                        <div style="position: relative;">
+                            <input type="password" id="truststore-password" value="changeit" placeholder="changeit" style="padding-right: 45px;">
+                            <button onclick="togglePassword('truststore-password')" type="button" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 8px;">
+                                <svg id="eye-truststore-password" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            Keystore Password
+                            <span class="tooltip">?
+                                <span class="tooltiptext">Password to protect the keystore.jks/.p12 files containing your client certificate.</span>
+                            </span>
+                        </label>
+                        <div style="position: relative;">
+                            <input type="password" id="keystore-password" value="changeit" placeholder="changeit" style="padding-right: 45px;">
+                            <button onclick="togglePassword('keystore-password')" type="button" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 8px;">
+                                <svg id="eye-keystore-password" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="showSection('upload')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <polyline points="15 18 9 12 15 6"/>
+                        </svg>
+                        Back
+                    </button>
+                    <button class="btn btn-primary" onclick="showSection('generate')">
+                        Continue to Generate
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: Generate -->
+        <div id="section-generate" class="section">
+            <div class="card">
+                <h2>Generate Keystores</h2>
+                <p class="card-desc">Generate your keystores and download them as a ZIP file.</p>
+
+                <div class="output-files">
+                    <div class="output-file">
+                        <div class="output-file-name">truststore.jks</div>
+                        <div class="output-file-desc">Java KeyStore with CA certificates for server validation</div>
+                    </div>
+                    <div class="output-file">
+                        <div class="output-file-name">keystore.jks</div>
+                        <div class="output-file-desc">Java KeyStore with your client certificate</div>
+                    </div>
+                    <div class="output-file">
+                        <div class="output-file-name">keystore.p12</div>
+                        <div class="output-file-desc">PKCS12 format keystore (alternative to JKS)</div>
+                    </div>
+                    <div class="output-file">
+                        <div class="output-file-name">client-ssl.properties</div>
+                        <div class="output-file-desc">Ready-to-use Kafka configuration file</div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="showSection('configure')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <polyline points="15 18 9 12 15 6"/>
+                        </svg>
+                        Back
+                    </button>
+                    <button class="btn btn-success" id="generateBtn" onclick="generateStores()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Generate & Download
+                    </button>
+                </div>
+
+                <div id="generate-logs" class="logs hidden" style="margin-top: 24px;"></div>
+            </div>
+        </div>
+
+        <!-- Section 4: Test -->
+        <div id="section-test" class="section">
+            <div class="card">
+                <h2>Test Kafka Connection</h2>
+                <p class="card-desc">Test your generated keystores with a real Kafka broker to ensure everything works.</p>
+
+                <div class="upload-grid" style="margin-bottom: 24px;">
+                    <div class="upload-box" id="box-truststore-test">
+                        <input type="file" name="truststore_test" onchange="handleFile(this, 'truststore-test')">
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                        </div>
+                        <span class="upload-label">Truststore</span>
+                        <span class="upload-hint" id="hint-truststore-test">truststore.jks</span>
+                    </div>
+
+                    <div class="upload-box" id="box-keystore-test">
+                        <input type="file" name="keystore_test" onchange="handleFile(this, 'keystore-test')">
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                        </div>
+                        <span class="upload-label">Keystore</span>
+                        <span class="upload-hint" id="hint-keystore-test">keystore.jks or .p12</span>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Bootstrap Server</label>
+                        <input type="text" id="test-bootstrap" placeholder="kafka.example.com:443">
+                    </div>
+                    <div class="form-group">
+                        <label>Store Password</label>
+                        <input type="password" id="test-password" value="changeit">
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="showSection('generate')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <polyline points="15 18 9 12 15 6"/>
+                        </svg>
+                        Back
+                    </button>
+                    <button class="btn btn-success" id="testBtn" onclick="testConnection()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Test Connection
+                    </button>
+                </div>
+
+                <div id="test-result" class="hidden"></div>
+            </div>
+
+            <div class="card">
+                <h2>
+                    Manual Commands
+                    <span class="tooltip">?
+                        <span class="tooltiptext">Use these commands with your generated keystores to interact with Kafka from the command line.</span>
+                    </span>
+                </h2>
+                <div style="background: var(--warning-light); border: 1px solid var(--warning); border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 0.9rem;">
+                    <strong style="color: var(--warning);">⚠️ Important:</strong> Before using the properties file, update the paths inside it to absolute paths:<br>
+                    <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">ssl.truststore.location=/absolute/path/to/truststore.jks</code><br>
+                    <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">ssl.keystore.location=/absolute/path/to/keystore.jks</code>
+                </div>
+                <div class="logs">
+# List topics
+./kafka-topics.sh --list \
+    --command-config client-ssl.properties \
+    --bootstrap-server &lt;bootstrap&gt;:443
+
+# Consume messages
+./kafka-console-consumer.sh \
+    --topic &lt;topic-name&gt; \
+    --from-beginning --max-messages 1 \
+    --consumer.config client-ssl.properties \
+    --bootstrap-server &lt;bootstrap&gt;:443</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const files = { ca: null, bundle: null, key: null };
+        const testFiles = { truststore: null, keystore: null };
+
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            const eye = document.getElementById('eye-' + inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                eye.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+            } else {
+                input.type = 'password';
+                eye.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+            }
+        }
+
+        function showSection(name) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById('section-' + name).classList.add('active');
+            document.querySelectorAll('.step-btn').forEach((btn, i) => {
+                btn.classList.remove('active');
+                if (['upload', 'configure', 'generate', 'test'][i] === name) btn.classList.add('active');
+            });
+        }
+
+        function handleFile(input, type) {
+            const file = input.files[0];
+            const box = document.getElementById('box-' + type);
+            const hint = document.getElementById('hint-' + type);
+
+            if (file) {
+                box.classList.add('has-file');
+                hint.textContent = file.name;
+
+                if (type === 'ca' || type === 'key' || type === 'bundle') {
+                    files[type] = file;
+                }
+                if (type === 'truststore-test') testFiles.truststore = file;
+                if (type === 'keystore-test') testFiles.keystore = file;
+
+                // Analyze CA chain
+                if (type === 'ca') {
+                    analyzeCert(file);
+                }
+            }
+        }
+
+        async function analyzeCert(file) {
+            const formData = new FormData();
+            formData.append('cert', file);
+
+            try {
+                const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (data.success && data.certificates.length > 0) {
+                    const container = document.getElementById('cert-analysis');
+                    let html = '<strong style="color: var(--text-primary); font-size: 1rem;">Certificate Chain Detected:</strong>';
+                    data.certificates.forEach(cert => {
+                        const isRoot = cert.subject === cert.issuer;
+                        html += `<div class="cert-item ${isRoot ? 'root' : ''}">
+                            <span class="cert-badge">${isRoot ? '✓ ROOT CA' : 'CA #' + cert.index}</span>
+                            <div style="margin-top: 8px;"><strong>Subject:</strong> ${cert.subject}</div>
+                            <div style="margin-top: 4px;"><strong>Issuer:</strong> ${cert.issuer}</div>
+                        </div>`;
+                    });
+                    container.innerHTML = html;
+                    container.classList.remove('hidden');
+                    showNotification(`Detected ${data.certificates.length} certificates in chain`, 'success');
+                }
+            } catch (e) {
+                console.error('Analysis failed:', e);
+            }
+        }
+
+        async function generateStores() {
+            if (!files.ca || !files.bundle || !files.key) {
+                showNotification('Please upload all 3 certificate files', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('generateBtn');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner"></span> Generating keystores...';
+            btn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('ca_chain', files.ca);
+            formData.append('bundle', files.bundle);
+            formData.append('key', files.key);
+            formData.append('alias', document.getElementById('alias').value);
+            formData.append('truststore_password', document.getElementById('truststore-password').value);
+            formData.append('keystore_password', document.getElementById('keystore-password').value);
+            formData.append('bootstrap', 'your-kafka-broker:443');
+
+            try {
+                const res = await fetch('/api/generate', { method: 'POST', body: formData });
+
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'kafka-ssl-config.zip';
+                    a.click();
+                    URL.revokeObjectURL(url);
+
+                    showNotification('Keystores generated successfully! Check your downloads folder.', 'success');
+                    setTimeout(() => showSection('test'), 2000);
+                } else {
+                    const data = await res.json();
+                    showNotification(data.error || 'Generation failed', 'error');
+                }
+            } catch (e) {
+                showNotification('Error: ' + e.message, 'error');
+            } finally {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        }
+
+        async function testConnection() {
+            if (!testFiles.truststore || !testFiles.keystore) {
+                showNotification('Please upload both truststore and keystore files', 'error');
+                return;
+            }
+
+            const bootstrap = document.getElementById('test-bootstrap').value;
+            if (!bootstrap) {
+                showNotification('Please enter Kafka bootstrap server', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('testBtn');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner"></span> Testing connection...';
+            btn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('truststore', testFiles.truststore);
+            formData.append('keystore', testFiles.keystore);
+            formData.append('bootstrap', bootstrap);
+            formData.append('password', document.getElementById('test-password').value);
+
+            try {
+                const res = await fetch('/api/test-kafka', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                const resultDiv = document.getElementById('test-result');
+                resultDiv.classList.remove('hidden');
+
+                if (data.success) {
+                    let html = `<div class="test-result success"><strong>✓ ${data.message}</strong>`;
+                    if (data.details) html += `<br><br>${data.details}`;
+                    if (data.topics && data.topics.length > 0) {
+                        html += `<br><br><strong>Topics found (${data.topics.length}):</strong><ul style="margin-top: 8px;">`;
+                        data.topics.slice(0, 10).forEach(t => html += `<li>${t}</li>`);
+                        if (data.topics.length > 10) html += `<li>...and ${data.topics.length - 10} more</li>`;
+                        html += '</ul>';
+                    }
+                    if (data.ssl_info) html += `<br><br><pre style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 6px; font-size: 0.8rem; overflow-x: auto;">${data.ssl_info}</pre>`;
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                    showNotification('Connection test successful!', 'success');
+                } else {
+                    let html = `<div class="test-result error"><strong>✗ ${data.error}</strong>`;
+                    if (data.details) html += `<br><br>${data.details}`;
+                    if (data.ssl_info) html += `<br><br><pre style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 6px; font-size: 0.8rem; overflow-x: auto;">${data.ssl_info}</pre>`;
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                    showNotification('Connection test failed', 'error');
+                }
+            } catch (e) {
+                showNotification('Test failed: ' + e.message, 'error');
+            } finally {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        }
+
+        function showNotification(msg, type) {
+            const notif = document.getElementById('notification');
+            notif.className = 'notification ' + type;
+            notif.textContent = msg;
+            notif.style.display = 'block';
+            setTimeout(() => notif.style.display = 'none', 5000);
+        }
+    </script>
+</body>
+</html>

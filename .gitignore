@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.env
+venv/
+*.jks
+*.p12
+*.pem
+*.key
+.idea/
+.vscode/
