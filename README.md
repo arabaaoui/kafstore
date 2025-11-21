@@ -17,7 +17,7 @@ Kafstore automates the tedious process of converting certificates into Java keys
 
 ### Steps
 1. Upload your **3 certificate files** (CA chain, bundle, key)
-2. Configure alias and passwords (separate for truststore/keystore)
+2. Configure alias and passwords
 3. Click "Generate & Download"
 4. Get your ready-to-use keystores in a ZIP file
 
@@ -63,7 +63,6 @@ docker-compose logs -f
 docker-compose down
 ```
 
-![Configuration Screen](docs/screenshots/kafstore-config.png)
 
 ### Manual Installation
 
@@ -86,8 +85,6 @@ python app.py
 
 ## 📖 Usage Guide
 
-![Generation Screen](docs/screenshots/kafstore-generate.png)
-
 ### Step 1: Upload Certificates
 
 You need only **3 files** from your certificate authority:
@@ -95,7 +92,8 @@ You need only **3 files** from your certificate authority:
 - **Bundle**: Your client certificate + intermediate CAs for keystore
 - **Private Key**: Your private key for keystore
 
-**Note:** File extensions don't matter - Kafstore accepts files without extensions!
+
+![Kafstore Interface](docs/screenshots/kafstore-upload.png)
 
 ### Step 2: Configure
 
@@ -103,7 +101,7 @@ You need only **3 files** from your certificate authority:
 - **Truststore Password**: Password for protecting `truststore.jks` (default: changeit)
 - **Keystore Password**: Password for protecting `keystore.jks` and `keystore.p12` (default: changeit)
 
-**New!** You can now use different passwords for truststore and keystore, with password visibility toggles.
+![Configuration Screen](docs/screenshots/kafstore-config.png)
 
 ### Step 3: Generate
 
@@ -113,12 +111,16 @@ Click "Generate Keystores" to create:
 - `keystore.p12` - Contains your client certificate (PKCS12 format)
 - `client-ssl.properties` - Ready-to-use Kafka configuration
 
+![Generation Screen](docs/screenshots/kafstore-generate.png)
+
 ### Step 4: Test (Optional)
 
 Use the built-in tester to validate your keystores:
 - Performs actual mTLS handshake with your Kafka broker
 - Verifies certificate chain is complete
 - Shows connection details on success
+
+![Kafstore Interface](docs/screenshots/kafstore-test.png)
 
 ### Step 5: Download & Use
 
@@ -148,13 +150,13 @@ ssl.key.password=your-keystore-password
     │  API     │
     └────┬─────┘
          │
-    ┌────▼──────────────┐
-    │  Certificate      │
-    │  Processing       │
-    │  ├─ keytool       │ (Java)
-    │  ├─ openssl       │
-    │  └─ cryptography  │ (Python)
-    └───────────────────┘
+┌────▼──────────────┐
+│  Certificate      │
+│  Processing       │
+│  ├─ keytool       │ (Java)
+│  ├─ openssl       │
+│  └─ cryptography  │ (Python)
+└───────────────────┘
 ```
 
 ## API Endpoints
