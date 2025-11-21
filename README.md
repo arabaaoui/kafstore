@@ -14,23 +14,8 @@ Kafstore automates the tedious process of converting certificates into Java keys
 
 ![Kafstore Interface](docs/screenshots/kafstore-upload.png)
 
-### Before (Manual Process)
-```bash
-# Step 1: Create truststore with ALL CA certificates
-keytool -import -file CA_chain -alias ca-0 \
-  -keystore truststore.jks -storepass changeit -noprompt
 
-# Step 2: Create PKCS12 keystore
-openssl pkcs12 -export -in bundle -inkey key \
-  -name alias -out keystore.p12 -passout pass:changeit
-
-# Step 3: Convert to JKS
-keytool -importkeystore -srckeystore keystore.p12 \
-  -srcstoretype pkcs12 -destkeystore keystore.jks \
-  -deststoretype jks -deststorepass changeit
-```
-
-### After (With Kafstore)
+### Steps
 1. Upload your **3 certificate files** (CA chain, bundle, key)
 2. Configure alias and passwords (separate for truststore/keystore)
 3. Click "Generate & Download"
