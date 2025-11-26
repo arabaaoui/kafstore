@@ -488,21 +488,21 @@
                         <span class="upload-example">Usually named: CA_chain, ca-bundle, chain.pem</span>
                     </div>
 
-                    <div class="upload-box" id="box-bundle">
-                        <input type="file" name="bundle" onchange="handleFile(this, 'bundle')">
+                    <div class="upload-box" id="box-cert">
+                        <input type="file" name="cert" onchange="handleFile(this, 'cert')">
                         <div class="upload-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
                             </svg>
                         </div>
                         <span class="upload-label">
-                            Certificate Bundle
+                            Client Certificate
                             <span class="tooltip">?
-                                <span class="tooltiptext">Your client certificate + intermediate CAs. This file already contains everything needed (no need for separate cert file).</span>
+                                <span class="tooltiptext">Your client certificate file. This is the certificate issued to you by the CA.</span>
                             </span>
                         </span>
-                        <span class="upload-hint" id="hint-bundle">bundle_cert_without_key</span>
-                        <span class="upload-example">Usually named: bundle, cert-bundle, fullchain.pem</span>
+                        <span class="upload-hint" id="hint-cert">cert</span>
+                        <span class="upload-example">Usually named: cert, certificate, client.crt, client.pem</span>
                     </div>
 
                     <div class="upload-box" id="box-key">
@@ -686,8 +686,26 @@
                         <input type="text" id="test-bootstrap" placeholder="kafka.example.com:443">
                     </div>
                     <div class="form-group">
-                        <label>Store Password</label>
-                        <input type="password" id="test-password" value="changeit">
+                        <label>Truststore Password</label>
+                        <div style="position: relative;">
+                            <input type="password" id="test-truststore-password" value="changeit" style="padding-right: 45px;">
+                            <button onclick="togglePassword('test-truststore-password')" type="button" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 8px;">
+                                <svg id="eye-test-truststore-password" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Keystore Password</label>
+                        <div style="position: relative;">
+                            <input type="password" id="test-keystore-password" value="changeit" style="padding-right: 45px;">
+                            <button onclick="togglePassword('test-keystore-password')" type="button" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 8px;">
+                                <svg id="eye-test-keystore-password" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -771,20 +789,23 @@
                 box.classList.add('has-file');
                 hint.textContent = file.name;
 
-                if (type === 'ca' || type === 'key' || type === 'bundle') {
+                if (type === 'ca' || type === 'key' || type === 'cert') {
                     files[type] = file;
                 }
                 if (type === 'truststore-test') testFiles.truststore = file;
                 if (type === 'keystore-test') testFiles.keystore = file;
 
-                // Analyze CA chain
+                // Analyze CA chain and cert
                 if (type === 'ca') {
-                    analyzeCert(file);
+                    analyzeCert(file, 'ca');
+                }
+                if (type === 'cert') {
+                    analyzeCert(file, 'cert');
                 }
             }
         }
 
-        async function analyzeCert(file) {
+        async function analyzeCert(file, type) {
             const formData = new FormData();
             formData.append('cert', file);
 
@@ -794,26 +815,93 @@
 
                 if (data.success && data.certificates.length > 0) {
                     const container = document.getElementById('cert-analysis');
-                    let html = '<strong style="color: var(--text-primary); font-size: 1rem;">Certificate Chain Detected:</strong>';
-                    data.certificates.forEach(cert => {
-                        const isRoot = cert.subject === cert.issuer;
-                        html += `<div class="cert-item ${isRoot ? 'root' : ''}">
-                            <span class="cert-badge">${isRoot ? '✓ ROOT CA' : 'CA #' + cert.index}</span>
-                            <div style="margin-top: 8px;"><strong>Subject:</strong> ${cert.subject}</div>
-                            <div style="margin-top: 4px;"><strong>Issuer:</strong> ${cert.issuer}</div>
-                        </div>`;
-                    });
-                    container.innerHTML = html;
-                    container.classList.remove('hidden');
-                    showNotification(`Detected ${data.certificates.length} certificates in chain`, 'success');
+
+                    // Store analysis data by type
+                    if (!window.certAnalysisData) {
+                        window.certAnalysisData = {};
+                    }
+                    window.certAnalysisData[type] = data.certificates;
+
+                    // Update display
+                    updateCertAnalysisDisplay();
                 }
             } catch (e) {
                 console.error('Analysis failed:', e);
             }
         }
 
+        function updateCertAnalysisDisplay() {
+            const container = document.getElementById('cert-analysis');
+            const caData = window.certAnalysisData?.ca;
+            const certData = window.certAnalysisData?.cert;
+
+            if (!caData && !certData) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            let html = '';
+
+            // Display CA Chain
+            if (caData && caData.length > 0) {
+                html += '<strong style="color: var(--text-primary); font-size: 1rem;">Certificate Chain Detected:</strong>';
+                caData.forEach(cert => {
+                    const isRoot = cert.subject === cert.issuer;
+                    html += `<div class="cert-item ${isRoot ? 'root' : ''}">
+                        <span class="cert-badge">${isRoot ? '✓ ROOT CA' : 'CA #' + cert.index}</span>
+                        <div style="margin-top: 8px;"><strong>Subject:</strong> ${cert.subject}</div>
+                        <div style="margin-top: 4px;"><strong>Issuer:</strong> ${cert.issuer}</div>
+                    </div>`;
+                });
+
+                if (caData.length > 0) {
+                    showNotification(`Detected ${caData.length} certificates in chain`, 'success');
+                }
+            }
+
+            // Display Client Certificate Info
+            if (certData && certData.length > 0) {
+                html += '<div style="margin-top: 24px;"><strong style="color: var(--text-primary); font-size: 1rem;">Client Certificate Information:</strong></div>';
+                certData.forEach(cert => {
+                    const cn = extractCN(cert.subject);
+                    html += `<div class="cert-item" style="border-left-color: var(--primary);">
+                        <span class="cert-badge">CLIENT CERT</span>
+                        <div style="margin-top: 8px;"><strong>Common Name (CN):</strong> ${cn || 'N/A'}</div>
+                        <div style="margin-top: 4px;"><strong>Subject:</strong> ${cert.subject}</div>
+                        <div style="margin-top: 4px;"><strong>Issuer:</strong> ${cert.issuer}</div>
+                        ${cert.not_before ? `<div style="margin-top: 4px;"><strong>Valid From:</strong> ${formatDate(cert.not_before)}</div>` : ''}
+                        ${cert.not_after ? `<div style="margin-top: 4px;"><strong>Valid Until:</strong> ${formatDate(cert.not_after)}</div>` : ''}
+                    </div>`;
+                });
+            }
+
+            container.innerHTML = html;
+            container.classList.remove('hidden');
+        }
+
+        function extractCN(subjectString) {
+            // Extract CN from subject string like "CN=example.com,O=Company,C=US"
+            const cnMatch = subjectString.match(/CN=([^,]+)/);
+            return cnMatch ? cnMatch[1] : null;
+        }
+
+        function formatDate(dateString) {
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('fr-FR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch (e) {
+                return dateString;
+            }
+        }
+
         async function generateStores() {
-            if (!files.ca || !files.bundle || !files.key) {
+            if (!files.ca || !files.cert || !files.key) {
                 showNotification('Please upload all 3 certificate files', 'error');
                 return;
             }
@@ -825,7 +913,7 @@
 
             const formData = new FormData();
             formData.append('ca_chain', files.ca);
-            formData.append('bundle', files.bundle);
+            formData.append('cert', files.cert);
             formData.append('key', files.key);
             formData.append('alias', document.getElementById('alias').value);
             formData.append('truststore_password', document.getElementById('truststore-password').value);
@@ -879,7 +967,8 @@
             formData.append('truststore', testFiles.truststore);
             formData.append('keystore', testFiles.keystore);
             formData.append('bootstrap', bootstrap);
-            formData.append('password', document.getElementById('test-password').value);
+            formData.append('truststore_password', document.getElementById('test-truststore-password').value);
+            formData.append('keystore_password', document.getElementById('test-keystore-password').value);
 
             try {
                 const res = await fetch('/api/test-kafka', { method: 'POST', body: formData });

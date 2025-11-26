@@ -59,7 +59,7 @@ def get_cert_info(cert_pem):
         return {'error': str(e)}
 
 
-def generate_stores(ca_chain, bundle, key, alias, truststore_password, keystore_password):
+def generate_stores(ca_chain, cert, key, alias, truststore_password, keystore_password):
     """Generate truststore.jks and keystore.jks from certificates."""
     work_dir = tempfile.mkdtemp()
     results = {'success': False, 'files': {}, 'errors': [], 'info': []}
@@ -67,7 +67,7 @@ def generate_stores(ca_chain, bundle, key, alias, truststore_password, keystore_
     try:
         # Save files to work directory
         ca_chain_path = os.path.join(work_dir, 'CA_chain')
-        bundle_path = os.path.join(work_dir, 'bundle')
+        cert_path = os.path.join(work_dir, 'cert')
         key_path = os.path.join(work_dir, 'key')
         truststore_path = os.path.join(work_dir, 'truststore.jks')
         keystore_p12_path = os.path.join(work_dir, 'keystore.p12')
@@ -75,8 +75,8 @@ def generate_stores(ca_chain, bundle, key, alias, truststore_password, keystore_
 
         with open(ca_chain_path, 'w') as f:
             f.write(ca_chain)
-        with open(bundle_path, 'w') as f:
-            f.write(bundle)
+        with open(cert_path, 'w') as f:
+            f.write(cert)
         with open(key_path, 'w') as f:
             f.write(key)
 
@@ -121,10 +121,10 @@ def generate_stores(ca_chain, bundle, key, alias, truststore_password, keystore_
 
         results['info'].append(f"Truststore created successfully with {len(certs)} CA certificates")
 
-        # Step 2: Create .p12 keystore (bundle contains cert + intermediates)
+        # Step 2: Create .p12 keystore (cert contains the client certificate)
         cmd_p12 = [
             'openssl', 'pkcs12', '-export',
-            '-in', bundle_path,
+            '-in', cert_path,
             '-inkey', key_path,
             '-name', alias,
             '-out', keystore_p12_path,
@@ -164,7 +164,7 @@ def generate_stores(ca_chain, bundle, key, alias, truststore_password, keystore_
         # Also save PEM files for openssl testing
         results['pem_files'] = {
             'ca_chain': ca_chain,
-            'bundle': bundle,
+            'cert': cert,
             'key': key
         }
         results['passwords'] = {
@@ -248,20 +248,20 @@ def generate():
 
         # Get uploaded files (only 3 needed now)
         ca_chain = request.files.get('ca_chain')
-        bundle = request.files.get('bundle')
+        cert = request.files.get('cert')
         key = request.files.get('key')
 
-        if not all([ca_chain, bundle, key]):
-            return jsonify({'success': False, 'error': 'All 3 certificate files are required (CA chain, bundle, key)'}), 400
+        if not all([ca_chain, cert, key]):
+            return jsonify({'success': False, 'error': 'All 3 certificate files are required (CA chain, cert, key)'}), 400
 
         # Read file contents
         ca_chain_content = ca_chain.read().decode('utf-8')
-        bundle_content = bundle.read().decode('utf-8')
+        cert_content = cert.read().decode('utf-8')
         key_content = key.read().decode('utf-8')
 
         # Generate stores
         result = generate_stores(
-            ca_chain_content, bundle_content, key_content,
+            ca_chain_content, cert_content, key_content,
             alias, truststore_password, keystore_password
         )
 
@@ -342,7 +342,8 @@ def test_kafka():
     work_dir = tempfile.mkdtemp()
     try:
         bootstrap = request.form.get('bootstrap')
-        password = request.form.get('password', 'changeit')
+        truststore_password = request.form.get('truststore_password', 'changeit')
+        keystore_password = request.form.get('keystore_password', 'changeit')
 
         if not bootstrap:
             return jsonify({'success': False, 'error': 'Bootstrap server is required'}), 400
@@ -353,7 +354,7 @@ def test_kafka():
 
         # Or use certificates to generate stores on the fly
         ca_chain = request.files.get('ca_chain')
-        bundle = request.files.get('bundle')
+        cert = request.files.get('cert')
         key = request.files.get('key')
 
         truststore_path = os.path.join(work_dir, 'truststore.jks')
@@ -362,7 +363,7 @@ def test_kafka():
 
         # PEM files for openssl testing
         ca_chain_content = None
-        bundle_content = None
+        cert_content = None
         key_content = None
 
         # Option 1: Use uploaded JKS files directly
@@ -372,14 +373,14 @@ def test_kafka():
             with open(keystore_path, 'wb') as f:
                 f.write(keystore_file.read())
         # Option 2: Generate stores from certificates
-        elif all([ca_chain, bundle, key]):
+        elif all([ca_chain, cert, key]):
             ca_chain_content = ca_chain.read().decode('utf-8')
-            bundle_content = bundle.read().decode('utf-8')
+            cert_content = cert.read().decode('utf-8')
             key_content = key.read().decode('utf-8')
 
             result = generate_stores(
-                ca_chain_content, bundle_content, key_content,
-                'kafka-test', password, password
+                ca_chain_content, cert_content, key_content,
+                'kafka-test', truststore_password, keystore_password
             )
 
             if not result['success']:
@@ -392,16 +393,16 @@ def test_kafka():
         else:
             return jsonify({
                 'success': False,
-                'error': 'Please provide either JKS files (truststore + keystore) or certificate files (ca_chain, bundle, key)'
+                'error': 'Please provide either JKS files (truststore + keystore) or certificate files (ca_chain, cert, key)'
             }), 400
 
         # Create properties file
         properties_content = f"""security.protocol=SSL
 ssl.truststore.location={truststore_path}
-ssl.truststore.password={password}
+ssl.truststore.password={truststore_password}
 ssl.keystore.location={keystore_path}
-ssl.keystore.password={password}
-ssl.key.password={password}
+ssl.keystore.password={keystore_password}
+ssl.key.password={keystore_password}
 ssl.endpoint.identification.algorithm=
 """
         with open(properties_path, 'w') as f:
@@ -446,9 +447,9 @@ import java.security.*;
 public class SSLTest {{
     public static void main(String[] args) {{
         System.setProperty("javax.net.ssl.trustStore", "{truststore_path}");
-        System.setProperty("javax.net.ssl.trustStorePassword", "{password}");
+        System.setProperty("javax.net.ssl.trustStorePassword", "{truststore_password}");
         System.setProperty("javax.net.ssl.keyStore", "{keystore_path}");
-        System.setProperty("javax.net.ssl.keyStorePassword", "{password}");
+        System.setProperty("javax.net.ssl.keyStorePassword", "{keystore_password}");
 
         try {{
             SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
